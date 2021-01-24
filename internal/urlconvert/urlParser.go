@@ -1,0 +1,239 @@
+package urlconvert
+
+import (
+	"bytes"
+	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/url"
+	"strings"
+
+	"github.com/nortoneo/iptv-proxy/internal/config"
+)
+
+const (
+	proxyRoutePrefix        = "p-"
+	proxyRoutePathSeparator = "_path_"
+)
+
+// GetProxyRoutePrefix returns proxy route prefix
+func GetProxyRoutePrefix() string {
+	return proxyRoutePrefix
+}
+
+// GetProxyRoutePathSeparator returns proxy path separator
+func GetProxyRoutePathSeparator() string {
+	return proxyRoutePathSeparator
+}
+
+// ConvertURLtoProxyURL converts real url to proxy url
+func ConvertURLtoProxyURL(realURL, appURL string) (string, error) {
+	real, err := url.Parse(realURL)
+	if err != nil {
+		return "", err
+	}
+
+	app, err := url.Parse(appURL)
+	if err != nil {
+		return "", err
+	}
+
+	//encoding real host path
+	encURL := real.Scheme
+	encURL += "://"
+	if real.User.String() != "" {
+		encURL += real.User.String() + "@"
+	}
+	encURL += real.Host
+	encURL, err = Encode(encURL)
+	if err != nil {
+		return "", err
+	}
+
+	//overriding to proxy
+	real.Scheme = app.Scheme
+	real.Host = app.Host
+	real.User = app.User
+	real.Path = GetProxyRoutePrefix() + encURL + GetProxyRoutePathSeparator() + real.Path
+
+	proxyURLString := real.String()
+
+	return proxyURLString, nil
+}
+
+// ConvertProxyURLtoURL converts real url to proxy url
+func ConvertProxyURLtoURL(proxyURL string) (string, error) {
+	url, err := url.Parse(proxyURL)
+	if err != nil {
+		return "", err
+	}
+
+	path := url.Path
+	start := strings.Index(path, GetProxyRoutePrefix())
+	end := strings.Index(path, GetProxyRoutePathSeparator())
+	if start == -1 || end == -1 {
+		return "", errors.New("Enc url separators not found")
+	}
+	encURL := path[start+len(GetProxyRoutePrefix()) : end]
+
+	decURL, err := Decode(encURL)
+	if err != nil {
+		return "", err
+	}
+	realURL, err := url.Parse(decURL)
+	if err != nil {
+		return "", err
+	}
+
+	url.Scheme = realURL.Scheme
+	url.Host = realURL.Host
+	url.User = realURL.User
+	url.Path = path[end+len(GetProxyRoutePathSeparator()):]
+
+	return url.String(), nil
+}
+
+// Encode encodes string to obfuscated url friendly string
+func Encode(text string) (string, error) {
+	key := config.GetConfig().EncryptionKey
+	encrypted, err := encrypt(text, key)
+	if err != nil {
+		return "", err
+	}
+	gziped, err := gzipString(encrypted)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.URLEncoding.EncodeToString([]byte(gziped))
+
+	return encoded, nil
+}
+
+// Decode decodes obfuscated string.
+func Decode(encoded string) (string, error) {
+	decodedBytes, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	unGziped, err := unGzipString(string(decodedBytes))
+	if err != nil {
+		return "", err
+	}
+	key := config.GetConfig().EncryptionKey
+	decrypted, err := decrypt(unGziped, key)
+	if err != nil {
+		return "", err
+	}
+
+	return decrypted, nil
+}
+
+func encrypt(stringToEncrypt string, keyString string) (string, error) {
+	// todo add proper key derivation
+	keySum := md5.Sum([]byte(keyString))
+	keyString = hex.EncodeToString(keySum[:])
+
+	//Since the key is in string, we need to convert decode it to bytes
+	key, err := hex.DecodeString(keyString)
+	if err != nil {
+		return "", nil
+	}
+	plaintext := []byte(stringToEncrypt)
+
+	//Create a new Cipher Block from the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", nil
+	}
+
+	//Create a new GCM - https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	//https://golang.org/pkg/crypto/cipher/#NewGCM
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", nil
+	}
+
+	//Create a nonce. Nonce should be from GCM
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", nil
+	}
+
+	//Encrypt the data using aesGCM.Seal
+	//Since we don't want to save the nonce somewhere else in this case, we add it as a prefix to the encrypted data. The first nonce argument in Seal is the prefix.
+	ciphertext := aesGCM.Seal(nonce, nonce, plaintext, nil)
+
+	return fmt.Sprintf("%x", ciphertext), nil
+}
+
+func decrypt(encryptedString string, keyString string) (string, error) {
+	// todo add proper key derivation
+	keySum := md5.Sum([]byte(keyString))
+	keyString = hex.EncodeToString(keySum[:])
+
+	key, err := hex.DecodeString(keyString)
+	if err != nil {
+		return "", err
+	}
+	enc, err := hex.DecodeString(encryptedString)
+	if err != nil {
+		return "", err
+	}
+	//Create a new Cipher Block from the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	//Create a new GCM
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	//Get the nonce size
+	nonceSize := aesGCM.NonceSize()
+	//Extract the nonce from the encrypted data
+	nonce, ciphertext := enc[:nonceSize], enc[nonceSize:]
+	//Decrypt the data
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s", plaintext), nil
+}
+
+func gzipString(text string) (string, error) {
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	if _, err := gz.Write([]byte(text)); err != nil {
+		return "", err
+	}
+	if err := gz.Close(); err != nil {
+		return "", err
+	}
+
+	return string(b.Bytes()), nil
+}
+
+func unGzipString(text string) (string, error) {
+	b := bytes.NewBufferString(text)
+	gr, err := gzip.NewReader(b)
+	if err != nil {
+		return "", err
+	}
+	defer gr.Close()
+	data, err := ioutil.ReadAll(gr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
