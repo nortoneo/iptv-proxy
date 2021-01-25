@@ -1,8 +1,9 @@
 # Iptv-Proxy
 
-Simple iptv proxy that converts m3u lists to its own internal urls.
+Simple iptv proxy that converts m3u lists to its own internal urls.  
+It follows redirections and accept self signed certificates.
 
-Client devices can connect to this app instead of original provider.
+Client devices can connect to this app instead of original provider.  
 
 ## Typical usecases
 
@@ -13,29 +14,29 @@ Client devices can connect to this app instead of original provider.
 
 You need to run this application with proper configuration passed by environment varialbles listed bellow.
 
-You can create as many LIST_ variables as you need. 
-For examle if you create variable ```LIST_myiptv``` with value of your provider url - you can access this list by you app url ```/list/myiptv```
+You can create as many LIST_ variables as you need.  
+For examle if you create variable ```LIST_myiptv``` with value of your provider url then you can access this list by your APP_URL ```/list/myiptv```
 
 For additional security or https support you can use nginx as reverse proxy.
-
+  
 ## Environment variables that should be set
 
 | Name | Default value | Description |
-| :----: | --- | --- |
+| --- | --- | --- |
 | `APP_URL` | http://localhost:1338 | Application url without trailing slash |
-| `LISTEN_ADDRESS` | :1338 | Listen address for app http server |
+| `LISTEN_ADDRESS` | :1338 | Listen address for http server |
 | `LIST_yourlist` | | Url to original m3u list that will be accessible under /list/yourlist |
 | `ENCRYPTION_KEY` |  | Passphrase used to encode original host |
-
+  
 ## Environment variables that are optional
 
 | Name | Default value | Description |
-| :----: | --- | --- |
+| --- | --- | --- |
 | `C_DIAL_TIMEOUT` | 60 | HTTP client dial timeout (seconds) |
 | `C_DIAL_KEEPALIVE` | 300 | HTTP client keep-alive timeout (seconds) |
 | `C_TLS_HANDSHAKE_TIMEOUT` | 30 | HTTP client TLS handshake timeout (seconds) |
 | `C_RESPONSE_HEADER_TIMEOUT` | 30 | HTTP client response header timeout (seconds) |
-| `C_EXPECT_CONTINUE_TIMEOUT` | 5 | HTTP expect continue timeout (seconds) |
+| `C_EXPECT_CONTINUE_TIMEOUT` | 5 | HTTP client expect continue timeout (seconds) |
 | `C_TIMEOUT` | 300 | HTTP client request timeout (seconds) |
 | `S_WRITE_TIMEOUT` | 300 | HTTP server write timeout (seconds) |
 | `S_READ_TIMEOUT` | 300 | HTTP server read timeout (seconds) |
@@ -69,7 +70,7 @@ version: "3.4"
 services:
   vpn:
     container_name: vpn
-    image: azinchen/nordvpn:latest # See: https://github.com/azinchen/nordvpn
+    image: azinchen/nordvpn:latest #See: https://github.com/azinchen/nordvpn
     cap_add:
       - net_admin
     devices:
