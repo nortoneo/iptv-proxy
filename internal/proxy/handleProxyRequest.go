@@ -14,12 +14,15 @@ import (
 	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 )
 
+// https://gist.github.com/gruber/249502
+const urlRegex = `(?i)\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s` + "`" + `!()\[\]{};:'".,<>?«»“”‘’]))`
+
 func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	currentURLString := r.URL.String()
-	realURLString, err := urlconvert.ConvertProxyURLtoURL(currentURLString)
+	realURLString, listName, err := urlconvert.ConvertProxyURLtoURL(currentURLString)
 	if err != nil {
 		log.Println("Failed to convert current url: " + currentURLString)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -45,7 +48,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	location := resp.Header.Get("location")
 	if location != "" {
-		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().AppURL)
+		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().AppURL, listName)
 		if err != nil {
 			log.Println("Unable to convert location header: " + location)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -63,7 +66,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	for _, parsableCT := range parsableContentType {
 		if strings.Contains(contentType, parsableCT) {
 			log.Println("Parsing: [" + contentType + "] " + realURLString)
-			parseHTTPClientResponceBody(resp, w)
+			parseHTTPClientResponceBody(resp, w, listName)
 			log.Println("Completed:  [" + contentType + "] " + realURLString)
 			return
 		}
@@ -97,18 +100,18 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Parsing: [" + pathExtension + "] " + realURLString)
-	parseHTTPClientResponceBody(resp, w)
+	parseHTTPClientResponceBody(resp, w, listName)
 	log.Println("Completed: [" + pathExtension + "] " + realURLString)
 }
 
-func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter) {
+func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, listName string) {
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
-		re := regexp.MustCompile(`\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`)
+		re := regexp.MustCompile(urlRegex)
 		urlsToReplace := re.FindAllString(line, -1)
 		for _, urlToReplace := range urlsToReplace {
-			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().AppURL)
+			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().AppURL, listName)
 			if err != nil {
 				log.Println("Unable to convert url: " + urlToReplace)
 			}

@@ -20,9 +20,15 @@ import (
 )
 
 const (
-	proxyRoutePrefix        = "p-"
+	listNamePrefix          = "l-"
+	proxyRoutePrefix        = "-p-"
 	proxyRoutePathSeparator = "_path_"
 )
+
+// GetListNamePrefix returns proxy route prefix
+func GetListNamePrefix() string {
+	return listNamePrefix
+}
 
 // GetProxyRoutePrefix returns proxy route prefix
 func GetProxyRoutePrefix() string {
@@ -35,7 +41,7 @@ func GetProxyRoutePathSeparator() string {
 }
 
 // ConvertURLtoProxyURL converts real url to proxy url
-func ConvertURLtoProxyURL(realURL, appURL string) (string, error) {
+func ConvertURLtoProxyURL(realURL, appURL, listName string) (string, error) {
 	real, err := url.Parse(realURL)
 	if err != nil {
 		return "", err
@@ -53,7 +59,12 @@ func ConvertURLtoProxyURL(realURL, appURL string) (string, error) {
 		encURL += real.User.String() + "@"
 	}
 	encURL += real.Host
-	encURL, err = Encode(encURL)
+
+	key := config.GetConfig().EncryptionKey
+	token, _ := config.GetListToken(listName)
+	key += token
+
+	encURL, err = Encode(encURL, key)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +73,7 @@ func ConvertURLtoProxyURL(realURL, appURL string) (string, error) {
 	real.Scheme = app.Scheme
 	real.Host = app.Host
 	real.User = app.User
-	real.Path = GetProxyRoutePrefix() + encURL + GetProxyRoutePathSeparator() + real.Path
+	real.Path = GetListNamePrefix() + listName + GetProxyRoutePrefix() + encURL + GetProxyRoutePathSeparator() + real.Path
 
 	proxyURLString := real.String()
 
@@ -70,40 +81,52 @@ func ConvertURLtoProxyURL(realURL, appURL string) (string, error) {
 }
 
 // ConvertProxyURLtoURL converts real url to proxy url
-func ConvertProxyURLtoURL(proxyURL string) (string, error) {
+// returns realURL, listName, error
+func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
 	url, err := url.Parse(proxyURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	path := url.Path
-	start := strings.Index(path, GetProxyRoutePrefix())
-	end := strings.Index(path, GetProxyRoutePathSeparator())
-	if start == -1 || end == -1 {
-		return "", errors.New("Enc url separators not found")
-	}
-	encURL := path[start+len(GetProxyRoutePrefix()) : end]
 
-	decURL, err := Decode(encURL)
+	listNameStart := strings.Index(path, GetListNamePrefix())
+	listNameEnd := strings.Index(path, GetProxyRoutePrefix())
+	if listNameStart == -1 || listNameEnd == -1 {
+		return "", "", errors.New("List name separators not found")
+	}
+	listName := path[listNameStart+len(GetListNamePrefix()) : listNameEnd]
+
+	encURLStart := strings.Index(path, GetProxyRoutePrefix())
+	encURLEnd := strings.Index(path, GetProxyRoutePathSeparator())
+	if encURLStart == -1 || encURLEnd == -1 {
+		return "", "", errors.New("Enc url separators not found")
+	}
+	encURL := path[encURLStart+len(GetProxyRoutePrefix()) : encURLEnd]
+
+	key := config.GetConfig().EncryptionKey
+	token, _ := config.GetListToken(listName)
+	key += token
+
+	decURL, err := Decode(encURL, key)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	realURL, err := url.Parse(decURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	url.Scheme = realURL.Scheme
 	url.Host = realURL.Host
 	url.User = realURL.User
-	url.Path = path[end+len(GetProxyRoutePathSeparator()):]
+	url.Path = path[encURLEnd+len(GetProxyRoutePathSeparator()):]
 
-	return url.String(), nil
+	return url.String(), listName, nil
 }
 
 // Encode encodes string to obfuscated url friendly string
-func Encode(text string) (string, error) {
-	key := config.GetConfig().EncryptionKey
+func Encode(text, key string) (string, error) {
 	encrypted, err := encrypt(text, key)
 	if err != nil {
 		return "", err
@@ -118,7 +141,7 @@ func Encode(text string) (string, error) {
 }
 
 // Decode decodes obfuscated string.
-func Decode(encoded string) (string, error) {
+func Decode(encoded, key string) (string, error) {
 	decodedBytes, err := base64.URLEncoding.DecodeString(encoded)
 	if err != nil {
 		return "", err
@@ -127,7 +150,6 @@ func Decode(encoded string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	key := config.GetConfig().EncryptionKey
 	decrypted, err := decrypt(unGziped, key)
 	if err != nil {
 		return "", err

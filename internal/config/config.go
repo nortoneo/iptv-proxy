@@ -47,6 +47,15 @@ func GetListURL(k string) (string, error) {
 	return urlString, nil
 }
 
+// GetListToken returns token for list
+func GetListToken(k string) (string, error) {
+	token := getEnv("TOKEN_"+k, "")
+	if token == "" {
+		return token, errors.New("Token for list " + k + " doesn`t exist")
+	}
+	return token, nil
+}
+
 func initConfig() {
 	config := Config{}
 	//general settings

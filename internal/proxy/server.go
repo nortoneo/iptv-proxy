@@ -12,8 +12,14 @@ import (
 // InitServer starting http server
 func InitServer() {
 	r := mux.NewRouter()
-	r.HandleFunc("/list/{key}", handleListRequest).Name("list")
-	r.HandleFunc("/"+urlconvert.GetProxyRoutePrefix()+"{encUrl}"+urlconvert.GetProxyRoutePathSeparator()+"{additionalPath:.*}", handleProxyRequest).Name("proxy")
+	r.HandleFunc("/list/{name}", handleListRequest).Queries("token", "{token}").Name("list")
+
+	r.HandleFunc("/"+
+		urlconvert.GetListNamePrefix()+"{listName}"+
+		urlconvert.GetProxyRoutePrefix()+"{encUrl}"+
+		urlconvert.GetProxyRoutePathSeparator()+"{additionalPath:.*}",
+		handleProxyRequest).Name("proxy")
+
 	r.HandleFunc("/robots.txt", handleRobots).Name("robots")
 
 	c := config.GetConfig()
