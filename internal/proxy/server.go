@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/nortoneo/iptv-proxy/internal/config"
-	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 
 	"github.com/gorilla/mux"
 )
@@ -13,14 +12,8 @@ import (
 func InitServer() {
 	r := mux.NewRouter()
 	r.HandleFunc("/list/{name}", handleListRequest).Queries("token", "{token}").Name("list")
-
-	r.HandleFunc("/"+
-		urlconvert.GetListNamePrefix()+"{listName}"+
-		urlconvert.GetProxyRoutePrefix()+"{encUrl}"+
-		urlconvert.GetProxyRoutePathSeparator()+"{additionalPath:.*}",
-		handleProxyRequest).Name("proxy")
-
 	r.HandleFunc("/robots.txt", handleRobots).Name("robots")
+	r.NotFoundHandler = http.HandlerFunc(handleProxyRequest)
 
 	c := config.GetConfig()
 	srv := &http.Server{

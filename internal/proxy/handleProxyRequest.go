@@ -14,14 +14,12 @@ import (
 	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 )
 
-// https://gist.github.com/gruber/249502
-const urlRegex = `(?i)\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s` + "`" + `!()\[\]{};:'".,<>?«»“”‘’]))`
+const urlRegex = `\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`
 
 func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
-	currentURLString := r.URL.String()
-	realURLString, listName, err := urlconvert.ConvertProxyURLtoURL(currentURLString)
+	realURLString, listName, err := urlconvert.ConvertProxyRequestToURL(r)
 	if err != nil {
-		log.Println("Failed to convert current url: " + currentURLString)
+		log.Printf("Failed to convert path (%s) %s\n", err, r.URL.String())
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -66,7 +64,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	for _, parsableCT := range parsableContentType {
 		if strings.Contains(contentType, parsableCT) {
 			log.Println("Parsing: [" + contentType + "] " + realURLString)
-			parseHTTPClientResponceBody(resp, w, listName)
+			parseHTTPClientResponceBody(resp, w, r)
 			log.Println("Completed:  [" + contentType + "] " + realURLString)
 			return
 		}
@@ -100,14 +98,31 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Parsing: [" + pathExtension + "] " + realURLString)
-	parseHTTPClientResponceBody(resp, w, listName)
+	parseHTTPClientResponceBody(resp, w, r)
 	log.Println("Completed: [" + pathExtension + "] " + realURLString)
 }
 
-func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, listName string) {
+func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *http.Request) {
+	listName := r.URL.Query().Get(urlconvert.GetParamList())
+	encURL := r.URL.Query().Get(urlconvert.GetParamEncTarget())
+	isEXTM3UFile := false
+
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if isEXTM3UFile == false {
+			isEXTM3UFile = strings.Contains(line, "#EXTM3U")
+		}
+
+		//add url query params to paths if its EXTM3U
+		if isEXTM3UFile && len(line) > 0 && string(line[0]) != "#" {
+			convLine, _ := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
+			if convLine != "" {
+				line = convLine
+			}
+		}
+
+		//converting any urls to proxy urls
 		re := regexp.MustCompile(urlRegex)
 		urlsToReplace := re.FindAllString(line, -1)
 		for _, urlToReplace := range urlsToReplace {

@@ -13,31 +13,39 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/nortoneo/iptv-proxy/internal/config"
 )
 
 const (
-	listNamePrefix          = "l-"
-	proxyRoutePrefix        = "-p-"
-	proxyRoutePathSeparator = "_path_"
+	paramList      = "iptv_proxy_list"
+	paramEncTarget = "iptv_proxy_target"
 )
 
-// GetListNamePrefix returns proxy route prefix
-func GetListNamePrefix() string {
-	return listNamePrefix
+// GetParamList return list param key
+func GetParamList() string {
+	return paramList
 }
 
-// GetProxyRoutePrefix returns proxy route prefix
-func GetProxyRoutePrefix() string {
-	return proxyRoutePrefix
+// GetParamEncTarget return enc target param key
+func GetParamEncTarget() string {
+	return paramEncTarget
 }
 
-// GetProxyRoutePathSeparator returns proxy path separator
-func GetProxyRoutePathSeparator() string {
-	return proxyRoutePathSeparator
+// ConvertPathToProxyPath convert path to proxy path by adding query params
+func ConvertPathToProxyPath(path, listName, encURL string) (string, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set(GetParamList(), listName)
+	q.Set(GetParamEncTarget(), encURL)
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
 }
 
 // ConvertURLtoProxyURL converts real url to proxy url
@@ -73,39 +81,59 @@ func ConvertURLtoProxyURL(realURL, appURL, listName string) (string, error) {
 	real.Scheme = app.Scheme
 	real.Host = app.Host
 	real.User = app.User
-	real.Path = GetListNamePrefix() + listName + GetProxyRoutePrefix() + encURL + GetProxyRoutePathSeparator() + real.Path
+	q := real.Query()
+	q.Set(GetParamList(), listName)
+	q.Set(GetParamEncTarget(), encURL)
+	real.RawQuery = q.Encode()
 
 	proxyURLString := real.String()
 
 	return proxyURLString, nil
 }
 
-// ConvertProxyURLtoURL converts real url to proxy url
-// returns realURL, listName, error
-func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
-	url, err := url.Parse(proxyURL)
+// ConvertProxyRequestToURL converts request to target url string
+func ConvertProxyRequestToURL(r *http.Request) (string, string, error) {
+	appURL, err := url.Parse(config.GetConfig().AppURL)
 	if err != nil {
 		return "", "", err
 	}
 
-	path := url.Path
+	reqURL := r.URL
+	reqURL.Scheme = appURL.Scheme
+	reqURL.Host = appURL.Host
+	reqURL.User = appURL.User
 
-	listNameStart := strings.Index(path, GetListNamePrefix())
-	listNameEnd := strings.Index(path, GetProxyRoutePrefix())
-	if listNameStart == -1 || listNameEnd == -1 {
-		return "", "", errors.New("List name separators not found")
-	}
-	listName := path[listNameStart+len(GetListNamePrefix()) : listNameEnd]
+	return ConvertProxyURLtoURL(reqURL.String())
+}
 
-	encURLStart := strings.Index(path, GetProxyRoutePrefix())
-	encURLEnd := strings.Index(path, GetProxyRoutePathSeparator())
-	if encURLStart == -1 || encURLEnd == -1 {
-		return "", "", errors.New("Enc url separators not found")
+// ConvertProxyURLtoURL converts real url to proxy url
+// returns realURL, listName, error
+func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
+	pURL, err := url.Parse(proxyURL)
+	if err != nil {
+		return "", "", err
 	}
-	encURL := path[encURLStart+len(GetProxyRoutePrefix()) : encURLEnd]
+
+	q := pURL.Query()
+	listName := q.Get(paramList)
+	if listName == "" {
+		return "", "", errors.New("No list name provided")
+	}
+	encURL := q.Get(paramEncTarget)
+	if encURL == "" {
+		return "", "", errors.New("No target provided")
+	}
+
+	//removing proxy params
+	q.Del(GetParamList())
+	q.Del(GetParamEncTarget())
+	pURL.RawQuery = q.Encode()
 
 	key := config.GetConfig().EncryptionKey
-	token, _ := config.GetListToken(listName)
+	token, err := config.GetListToken(listName)
+	if err != nil {
+		return "", "", err
+	}
 	key += token
 
 	decURL, err := Decode(encURL, key)
@@ -117,12 +145,11 @@ func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
 		return "", "", err
 	}
 
-	url.Scheme = realURL.Scheme
-	url.Host = realURL.Host
-	url.User = realURL.User
-	url.Path = path[encURLEnd+len(GetProxyRoutePathSeparator()):]
+	pURL.Scheme = realURL.Scheme
+	pURL.Host = realURL.Host
+	pURL.User = realURL.User
 
-	return url.String(), listName, nil
+	return pURL.String(), listName, nil
 }
 
 // Encode encodes string to obfuscated url friendly string
