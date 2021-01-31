@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -61,7 +60,6 @@ type Config struct {
 func GetConfig() Config {
 	once.Do(func() {
 		initConfig()
-		log.Println("Config initialized")
 	})
 
 	return *c
