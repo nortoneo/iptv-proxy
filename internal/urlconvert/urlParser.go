@@ -68,7 +68,7 @@ func ConvertURLtoProxyURL(realURL, appURL, listName string) (string, error) {
 	}
 	encURL += real.Host
 
-	key := config.GetConfig().EncryptionKey
+	key := config.GetConfig().App.EncryptionKey
 	token, _ := config.GetListToken(listName)
 	key += token
 
@@ -93,7 +93,7 @@ func ConvertURLtoProxyURL(realURL, appURL, listName string) (string, error) {
 
 // ConvertProxyRequestToURL converts request to target url string
 func ConvertProxyRequestToURL(r *http.Request) (string, string, error) {
-	appURL, err := url.Parse(config.GetConfig().AppURL)
+	appURL, err := url.Parse(config.GetConfig().App.URL)
 	if err != nil {
 		return "", "", err
 	}
@@ -129,7 +129,7 @@ func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
 	q.Del(GetParamEncTarget())
 	pURL.RawQuery = q.Encode()
 
-	key := config.GetConfig().EncryptionKey
+	key := config.GetConfig().App.EncryptionKey
 	token, err := config.GetListToken(listName)
 	if err != nil {
 		return "", "", err

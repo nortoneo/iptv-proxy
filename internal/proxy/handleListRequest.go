@@ -15,6 +15,7 @@ func handleListRequest(w http.ResponseWriter, r *http.Request) {
 	reqListName := vars["name"]
 	reqToken := vars["token"]
 	listURLString, err := config.GetListURL(reqListName)
+	log.Println("Using list: " + listURLString)
 	if err != nil {
 		log.Println(err.Error())
 		w.WriteHeader(http.StatusNotFound)
@@ -34,7 +35,8 @@ func handleListRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxiedURLString, err := urlconvert.ConvertURLtoProxyURL(listURLString, config.GetConfig().AppURL, reqListName)
+	proxiedURLString, err := urlconvert.ConvertURLtoProxyURL(listURLString, config.GetConfig().App.URL, reqListName)
+	log.Println("Proxy list: " + proxiedURLString)
 	if err != nil {
 		log.Println(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

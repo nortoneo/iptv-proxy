@@ -46,7 +46,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	location := resp.Header.Get("location")
 	if location != "" {
-		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().AppURL, listName)
+		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().App.URL, listName)
 		if err != nil {
 			log.Println("Unable to convert location header: " + location)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -126,7 +126,7 @@ func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *
 		re := regexp.MustCompile(urlRegex)
 		urlsToReplace := re.FindAllString(line, -1)
 		for _, urlToReplace := range urlsToReplace {
-			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().AppURL, listName)
+			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().App.URL, listName)
 			if err != nil {
 				log.Println("Unable to convert url: " + urlToReplace)
 			}

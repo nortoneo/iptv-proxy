@@ -1,0 +1,19 @@
+# lists:
+#   sample: #can be accesed by /list/sample?token=123
+#     token: 123
+#     url: https://example-playlist/playlist.m3u8
+app:
+  encryptionkey: some_key
+  url: http://127.0.0.1:1338
+client:
+  dialkeepalive: 5m
+  dialtimeout: 1m
+  expectcontinuetimeout: 5s
+  responseheadertimeout: 30s
+  timeout: 5m
+  tlshandshaketimeout: 30s
+server:
+  idletimeout: 5m
+  port: 1338
+  readtimeout: 5m
+  writetimeout: 5m

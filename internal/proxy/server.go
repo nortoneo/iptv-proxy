@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/nortoneo/iptv-proxy/internal/config"
 
@@ -18,10 +19,10 @@ func InitServer() {
 	c := config.GetConfig()
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         c.ListenAddress,
-		WriteTimeout: c.ServWriteTimeout,
-		ReadTimeout:  c.ServReadTimeout,
-		IdleTimeout:  c.ServIdleTimeout,
+		Addr:         ":" + strconv.Itoa(c.Server.Port),
+		WriteTimeout: c.Server.WriteTimeout,
+		ReadTimeout:  c.Server.ReadTimeout,
+		IdleTimeout:  c.Server.IdleTimeout,
 	}
 	if err := srv.ListenAndServe(); err != nil {
 		panic(err)

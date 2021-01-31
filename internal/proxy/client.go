@@ -28,15 +28,15 @@ func initClient() {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		Dial: (&net.Dialer{
-			Timeout:   c.ClientDialTimeout,
-			KeepAlive: c.ClientDialKeepAlive,
+			Timeout:   c.Client.DialTimeout,
+			KeepAlive: c.Client.DialKeepalive,
 		}).Dial,
-		TLSHandshakeTimeout:   c.ClientTLSHandshakeTimeout,
-		ResponseHeaderTimeout: c.ClientResponseHeaderTimeout,
-		ExpectContinueTimeout: c.ClientExpectContinueTimeout,
+		TLSHandshakeTimeout:   c.Client.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: c.Client.ResponseHeaderTimeout,
+		ExpectContinueTimeout: c.Client.ExpectContinueTimeout,
 	}
 	httpClient = &http.Client{
-		Timeout:   c.ClientTimeout,
+		Timeout:   c.Client.Timeout,
 		Transport: tr,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
