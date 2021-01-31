@@ -24,6 +24,9 @@ lists:
 ```
 
 You can create as many LIST_ & TOKEN_ variables as you need.  
+
+```APP_URL``` should have value of url by which proxy is accessible.  
+It shouldnt contain any path and trailing slash.
   
 If you want to override other settings from config file by envirenment variable you can access nested values by ```_```.  
 For example to override encryption key you can set ```APP_ENCRYPTIONKEY=other_key```
