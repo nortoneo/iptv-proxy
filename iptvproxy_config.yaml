@@ -1,5 +1,5 @@
 # lists:
-#   sample: #can be accesed by /list/sample?token=123
+#   example: #can be accesed by /list/example?token=123
 #     token: 123
 #     url: https://example-playlist/playlist.m3u8
 app:

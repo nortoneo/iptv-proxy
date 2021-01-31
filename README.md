@@ -32,7 +32,7 @@ For example to override encryption key you can set ```APP_ENCRYPTIONKEY=other_ke
 
 ## Snippets
 
-### Standalone docker-compose.yml sample
+### Standalone docker-compose.yml example
 
 ```
 version: "3.4"
@@ -51,7 +51,7 @@ services:
       APP_ENCRYPTIONKEY: your_encryption_passphrase
 ```
 
-### Behind NordVPN docker-compose.yml sample
+### Behind NordVPN docker-compose.yml example
 
 ```
 version: "3.4"
