@@ -4,35 +4,63 @@ import (
 	"errors"
 	"log"
 	"os"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 var c *Config
 var once sync.Once
 
+const (
+	envKeyList  = "LIST_"
+	envKeyToken = "TOKEN_"
+)
+
+// List struct
+type List struct {
+	Token string `mapstructure:"token"`
+	URL   string `mapstructure:"url"`
+}
+
+// App struct
+type App struct {
+	EncryptionKey string `mapstructure:"encryptionKey"`
+	URL           string `mapstructure:"url"`
+}
+
+// Server struct
+type Server struct {
+	Port         int           `mapstructure:"port"`
+	WriteTimeout time.Duration `mapstructure:"writeTimeout"`
+	ReadTimeout  time.Duration `mapstructure:"readTimeout"`
+	IdleTimeout  time.Duration `mapstructure:"idleTimeout"`
+}
+
+// Client struct
+type Client struct {
+	DialTimeout           time.Duration `mapstructure:"dialTimeout"`
+	DialKeepalive         time.Duration `mapstructure:"dialKeepalive"`
+	TLSHandshakeTimeout   time.Duration `mapstructure:"tlsHandshakeTimeout"`
+	ResponseHeaderTimeout time.Duration `mapstructure:"responseHeaderTimeout"`
+	ExpectContinueTimeout time.Duration `mapstructure:"expectContinueTimeout"`
+	Timeout               time.Duration `mapstructure:"timeout"`
+}
+
 // Config struct
 type Config struct {
-	ListenAddress               string
-	AppURL                      string
-	EncryptionKey               string
-	ClientDialTimeout           time.Duration
-	ClientDialKeepAlive         time.Duration
-	ClientTLSHandshakeTimeout   time.Duration
-	ClientResponseHeaderTimeout time.Duration
-	ClientExpectContinueTimeout time.Duration
-	ClientTimeout               time.Duration
-	ServWriteTimeout            time.Duration
-	ServReadTimeout             time.Duration
-	ServIdleTimeout             time.Duration
+	Lists  map[string]List `mapstructure:"lists"`
+	App    App             `mapstructure:"app"`
+	Server Server          `mapstructure:"server"`
+	Client Client          `mapstructure:"client"`
 }
 
 // GetConfig returns initialized config struct
 func GetConfig() Config {
 	once.Do(func() {
 		initConfig()
-		log.Println("Config initialized")
 	})
 
 	return *c
@@ -40,43 +68,88 @@ func GetConfig() Config {
 
 // GetListURL returns url for playlist and error if list doesnt exist
 func GetListURL(k string) (string, error) {
-	urlString := getEnv("LIST_"+k, "")
-	if urlString == "" {
-		return urlString, errors.New("List " + k + " doesn`t exist")
+	list, err := GetListFromConfig(k)
+	return list.URL, err
+}
+
+// GetListToken returns token for list
+func GetListToken(k string) (string, error) {
+	list, err := GetListFromConfig(k)
+	return list.Token, err
+}
+
+// GetListFromConfig find list in config
+func GetListFromConfig(name string) (List, error) {
+	c := GetConfig()
+	for k, l := range c.Lists {
+		if k == name {
+			return l, nil
+		}
 	}
-	return urlString, nil
+	return List{}, errors.New("List " + name + " doesn`t exist")
 }
 
 func initConfig() {
 	config := Config{}
-	//general settings
-	config.AppURL = getEnv("APP_URL", "http://localhost:1338")
-	config.ListenAddress = getEnv("LISTEN_ADDRESS", ":1338")
-	//http client timeouts
-	config.ClientDialTimeout = getEnvSeconds("C_DIAL_TIMEOUT", 60)
-	config.ClientDialKeepAlive = getEnvSeconds("C_DIAL_KEEPALIVE", 5*60)
-	config.ClientTLSHandshakeTimeout = getEnvSeconds("C_TLS_HANDSHAKE_TIMEOUT", 30)
-	config.ClientResponseHeaderTimeout = getEnvSeconds("C_RESPONSE_HEADER_TIMEOUT", 30)
-	config.ClientExpectContinueTimeout = getEnvSeconds("C_EXPECT_CONTINUE_TIMEOUT", 5)
-	config.ClientTimeout = getEnvSeconds("C_TIMEOUT", 5*60)
-	//http server timeouts
-	config.ServWriteTimeout = getEnvSeconds("S_WRITE_TIMEOUT", 5*60)
-	config.ServReadTimeout = getEnvSeconds("S_READ_TIMEOUT", 5*60)
-	config.ServIdleTimeout = getEnvSeconds("S_IDLE_TIMEOUT", 5*60)
 
-	setEncryptionKey(&config)
+	viper.SetDefault("server.port", 1338)
+	viper.SetDefault("app.url", "http://127.0.0.1:1338")
+	viper.SetDefault("app.encryptionKey", "some_key")
+	viper.SetDefault("client.dialTimeout", "1m")
+	viper.SetDefault("client.dialKeepalive", "5m")
+	viper.SetDefault("client.tlsHandshakeTimeout", "30s")
+	viper.SetDefault("client.responseHeaderTimeout", "30s")
+	viper.SetDefault("client.expectContinueTimeout", "5s")
+	viper.SetDefault("client.timeout", "5m")
+	viper.SetDefault("server.writeTimeout", "5m")
+	viper.SetDefault("server.readTimeout", "5m")
+	viper.SetDefault("server.idleTimeout", "5m")
+
+	path := "."
+	viper.AddConfigPath(path)
+	viper.SetConfigName("iptvproxy_config")
+	viper.SetConfigType("yaml")
+
+	viper.SafeWriteConfig()
+
+	replacer := strings.NewReplacer(".", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv()
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	err = viper.Unmarshal(&config)
+	if err != nil {
+		panic(err)
+	}
+
+	if config.Lists == nil {
+		config.Lists = make(map[string]List)
+	}
+	addEnvPlaylists(&config)
 
 	c = &config
 }
 
-func setEncryptionKey(config *Config) {
-	key := getEnv("ENCRYPTION_KEY", "")
-	if key == "" {
-		//TODO: Consider generating random password and store it somewhere to avoid key change on app restart
-		log.Print("\n---------------\nWARNING!\nEnvironment variable ENCRYPTION_KEY is not defined!\nUsing default passphrase.\n---------------\n")
-		key = "Encryption key is not defined!"
+func addEnvPlaylists(c *Config) {
+	for _, e := range os.Environ() {
+		if envKeyList == e[:len(envKeyList)] {
+			pair := strings.SplitN(e, "=", 2)
+			name := pair[0][len(envKeyList):]
+			url := pair[1]
+
+			if name == "" || url == "" {
+				continue
+			}
+			token := getEnv(envKeyToken+name, "")
+			log.Println(token)
+
+			c.Lists[name] = List{URL: url, Token: token}
+		}
 	}
-	config.EncryptionKey = key
 }
 
 func getEnv(key, fallback string) string {
@@ -84,19 +157,4 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func getEnvInt(key string, fallback int) int {
-	if value, ok := os.LookupEnv(key); ok {
-		if i, err := strconv.Atoi(value); err == nil {
-			return i
-		}
-	}
-	return fallback
-}
-
-func getEnvSeconds(key string, fallback int) time.Duration {
-	intVal := getEnvInt(key, fallback)
-	d := time.Duration(intVal) * time.Second
-	return d
 }

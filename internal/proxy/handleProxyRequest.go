@@ -14,12 +14,15 @@ import (
 	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 )
 
+const (
+	urlRegex = `\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`
+)
+
 func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
-	currentURLString := r.URL.String()
-	realURLString, err := urlconvert.ConvertProxyURLtoURL(currentURLString)
+	realURLString, listName, err := urlconvert.ConvertProxyRequestToURL(r)
 	if err != nil {
-		log.Println("Failed to convert current url: " + currentURLString)
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Failed to convert path (%s) %s\n", err, r.URL.String())
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -45,7 +48,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	location := resp.Header.Get("location")
 	if location != "" {
-		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().AppURL)
+		proxyLocation, err := urlconvert.ConvertURLtoProxyURL(location, config.GetConfig().App.URL, listName)
 		if err != nil {
 			log.Println("Unable to convert location header: " + location)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -63,7 +66,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	for _, parsableCT := range parsableContentType {
 		if strings.Contains(contentType, parsableCT) {
 			log.Println("Parsing: [" + contentType + "] " + realURLString)
-			parseHTTPClientResponceBody(resp, w)
+			parseHTTPClientResponceBody(resp, w, r)
 			log.Println("Completed:  [" + contentType + "] " + realURLString)
 			return
 		}
@@ -97,18 +100,48 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Parsing: [" + pathExtension + "] " + realURLString)
-	parseHTTPClientResponceBody(resp, w)
+	parseHTTPClientResponceBody(resp, w, r)
 	log.Println("Completed: [" + pathExtension + "] " + realURLString)
 }
 
-func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter) {
+func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *http.Request) {
+	listName := r.URL.Query().Get(urlconvert.GetParamList())
+	encURL := r.URL.Query().Get(urlconvert.GetParamEncTarget())
+	isEXTM3UFile := false
+
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
-		re := regexp.MustCompile(`\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`)
+		if isEXTM3UFile == false {
+			isEXTM3UFile = strings.Contains(line, "#EXTM3U")
+		}
+
+		//add url query params to paths if its EXTM3U
+		if isEXTM3UFile {
+			if len(line) > 0 && string(line[0]) != "#" {
+				convLine, _ := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
+				if convLine != "" {
+					line = convLine
+				}
+			} else {
+				urire := regexp.MustCompile(`(URI|uri)=".*"`)
+				urisToReplace := urire.FindAllString(line, -1)
+				for _, uriToReplace := range urisToReplace {
+					pathToReplace := uriToReplace[5 : len(uriToReplace)-1]
+					proxiedPath, err := urlconvert.ConvertPathToProxyPath(pathToReplace, listName, encURL)
+					if err != nil {
+						log.Println("Unable to convert uri path: " + pathToReplace)
+					}
+					line = strings.ReplaceAll(line, pathToReplace, proxiedPath)
+				}
+			}
+		}
+
+		//converting any urls to proxy urls
+		re := regexp.MustCompile(urlRegex)
 		urlsToReplace := re.FindAllString(line, -1)
 		for _, urlToReplace := range urlsToReplace {
-			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().AppURL)
+			proxiedURL, err := urlconvert.ConvertURLtoProxyURL(urlToReplace, config.GetConfig().App.URL, listName)
 			if err != nil {
 				log.Println("Unable to convert url: " + urlToReplace)
 			}

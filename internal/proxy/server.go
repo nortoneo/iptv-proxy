@@ -2,9 +2,9 @@ package proxy
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/nortoneo/iptv-proxy/internal/config"
-	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 
 	"github.com/gorilla/mux"
 )
@@ -12,17 +12,17 @@ import (
 // InitServer starting http server
 func InitServer() {
 	r := mux.NewRouter()
-	r.HandleFunc("/list/{key}", handleListRequest).Name("list")
-	r.HandleFunc("/"+urlconvert.GetProxyRoutePrefix()+"{encUrl}"+urlconvert.GetProxyRoutePathSeparator()+"{additionalPath:.*}", handleProxyRequest).Name("proxy")
+	r.HandleFunc("/list/{name}", handleListRequest).Queries("token", "{token}").Name("list")
 	r.HandleFunc("/robots.txt", handleRobots).Name("robots")
+	r.NotFoundHandler = http.HandlerFunc(handleProxyRequest)
 
 	c := config.GetConfig()
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         c.ListenAddress,
-		WriteTimeout: c.ServWriteTimeout,
-		ReadTimeout:  c.ServReadTimeout,
-		IdleTimeout:  c.ServIdleTimeout,
+		Addr:         ":" + strconv.Itoa(c.Server.Port),
+		WriteTimeout: c.Server.WriteTimeout,
+		ReadTimeout:  c.Server.ReadTimeout,
+		IdleTimeout:  c.Server.IdleTimeout,
 	}
 	if err := srv.ListenAndServe(); err != nil {
 		panic(err)

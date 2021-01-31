@@ -8,6 +8,10 @@ import (
 )
 
 func main() {
-	log.Printf("%+v\n", config.GetConfig())
+	c := config.GetConfig()
+	log.Printf(
+		"App started\nApp config: %+v\nServer config: %+v\nClient config: %+v\nPlaylists: %+v",
+		c.App, c.Server, c.Client, c.Lists)
+
 	proxy.InitServer()
 }
