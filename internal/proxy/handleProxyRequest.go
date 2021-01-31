@@ -16,7 +16,6 @@ import (
 
 const (
 	urlRegex = `\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`
-	uriRegex = `URI=(["'])(.*?)\1`
 )
 
 func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
@@ -125,14 +124,15 @@ func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *
 					line = convLine
 				}
 			} else {
-				urire := regexp.MustCompile(uriRegex)
+				urire := regexp.MustCompile(`(URI|uri)=".*"`)
 				urisToReplace := urire.FindAllString(line, -1)
 				for _, uriToReplace := range urisToReplace {
-					proxiedURI, err := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
+					pathToReplace := uriToReplace[5 : len(uriToReplace)-1]
+					proxiedPath, err := urlconvert.ConvertPathToProxyPath(pathToReplace, listName, encURL)
 					if err != nil {
-						log.Println("Unable to convert uri: " + uriToReplace)
+						log.Println("Unable to convert uri path: " + pathToReplace)
 					}
-					line = strings.ReplaceAll(line, uriToReplace, proxiedURI)
+					line = strings.ReplaceAll(line, pathToReplace, proxiedPath)
 				}
 			}
 		}
