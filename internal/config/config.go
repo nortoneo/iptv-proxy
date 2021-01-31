@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -125,6 +126,9 @@ func initConfig() {
 		panic(err)
 	}
 
+	if config.Lists == nil {
+		config.Lists = make(map[string]List)
+	}
 	addEnvPlaylists(&config)
 
 	c = &config
@@ -136,10 +140,13 @@ func addEnvPlaylists(c *Config) {
 			pair := strings.SplitN(e, "=", 2)
 			name := pair[0][len(envKeyList):]
 			url := pair[1]
+
 			if name == "" || url == "" {
 				continue
 			}
 			token := getEnv(envKeyToken+name, "")
+			log.Println(token)
+
 			c.Lists[name] = List{URL: url, Token: token}
 		}
 	}
