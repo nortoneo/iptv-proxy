@@ -14,7 +14,10 @@ import (
 	"github.com/nortoneo/iptv-proxy/internal/urlconvert"
 )
 
-const urlRegex = `\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`
+const (
+	urlRegex = `\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))`
+	uriRegex = `URI=(["'])(.*?)\1`
+)
 
 func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	realURLString, listName, err := urlconvert.ConvertProxyRequestToURL(r)
@@ -115,10 +118,22 @@ func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *
 		}
 
 		//add url query params to paths if its EXTM3U
-		if isEXTM3UFile && len(line) > 0 && string(line[0]) != "#" {
-			convLine, _ := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
-			if convLine != "" {
-				line = convLine
+		if isEXTM3UFile {
+			if len(line) > 0 && string(line[0]) != "#" {
+				convLine, _ := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
+				if convLine != "" {
+					line = convLine
+				}
+			} else {
+				urire := regexp.MustCompile(uriRegex)
+				urisToReplace := urire.FindAllString(line, -1)
+				for _, uriToReplace := range urisToReplace {
+					proxiedURI, err := urlconvert.ConvertPathToProxyPath(line, listName, encURL)
+					if err != nil {
+						log.Println("Unable to convert uri: " + uriToReplace)
+					}
+					line = strings.ReplaceAll(line, uriToReplace, proxiedURI)
+				}
 			}
 		}
 
