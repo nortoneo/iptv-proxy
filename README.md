@@ -21,9 +21,13 @@ lists:
   exmaple: #can be accesed by /list/example?token=123
     token: 123
     url: https://example-playlist/playlist.m3u8
+    maxConnections: 2 #max simultaneous client connections
 ```
 
 You can create as many LIST_ & TOKEN_ variables as you need.  
+
+Addtionally you can set number of maximum simultaneous client connections by providing env varaible ```MAXCON_example``` 
+or setting ```maxConnections``` in config file.  
 
 ```APP_URL``` should have value of url by which proxy is accessible.  
 It shouldnt contain any path and trailing slash.
