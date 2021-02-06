@@ -26,6 +26,9 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lockListConnection(listName)
+	defer unlockListConnection(listName)
+
 	req, err := http.NewRequest("GET", realURLString, nil)
 	if err != nil {
 		log.Println(err.Error())

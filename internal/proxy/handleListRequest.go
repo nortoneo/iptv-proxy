@@ -35,6 +35,9 @@ func handleListRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lockListConnection(reqListName)
+	defer unlockListConnection(reqListName)
+
 	proxiedURLString, err := urlconvert.ConvertURLtoProxyURL(listURLString, config.GetConfig().App.URL, reqListName)
 	log.Println("Proxy list: " + proxiedURLString)
 	if err != nil {

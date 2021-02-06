@@ -2,8 +2,8 @@ package config
 
 import (
 	"errors"
-	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,14 +15,16 @@ var c *Config
 var once sync.Once
 
 const (
-	envKeyList  = "LIST_"
-	envKeyToken = "TOKEN_"
+	envKeyList           = "LIST_"
+	envKeyToken          = "TOKEN_"
+	envKeyMaxConnections = "MAXCON_"
 )
 
 // List struct
 type List struct {
-	Token string `mapstructure:"token"`
-	URL   string `mapstructure:"url"`
+	Token          string `mapstructure:"token"`
+	URL            string `mapstructure:"url"`
+	MaxConnections int    `mapstructure:"maxConnections"`
 }
 
 // App struct
@@ -76,6 +78,12 @@ func GetListURL(k string) (string, error) {
 func GetListToken(k string) (string, error) {
 	list, err := GetListFromConfig(k)
 	return list.Token, err
+}
+
+// GetListMaxConnectios returns max clinet simultaneous conncetions for playlist
+func GetListMaxConnectios(k string) (int, error) {
+	list, err := GetListFromConfig(k)
+	return list.MaxConnections, err
 }
 
 // GetListFromConfig find list in config
@@ -145,9 +153,10 @@ func addEnvPlaylists(c *Config) {
 				continue
 			}
 			token := getEnv(envKeyToken+name, "")
-			log.Println(token)
+			maxConVal := getEnv(envKeyMaxConnections+name, "1")
+			maxCon, _ := strconv.Atoi(maxConVal)
 
-			c.Lists[name] = List{URL: url, Token: token}
+			c.Lists[name] = List{URL: url, Token: token, MaxConnections: maxCon}
 		}
 	}
 }
