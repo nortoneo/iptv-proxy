@@ -26,6 +26,14 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = lockListConnection(listName)
+	if err != nil {
+		log.Println("Too many connections for list " + listName)
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	defer unlockListConnection(listName)
+
 	req, err := http.NewRequest("GET", realURLString, nil)
 	if err != nil {
 		log.Println(err.Error())
@@ -76,7 +84,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 	for _, streamableCT := range streamableContentType {
 		if strings.Contains(contentType, streamableCT) {
 			log.Println("Streaming:  [" + contentType + "] " + realURLString)
-			streamHTTPClientResponceBody(resp, w)
+			streamHTTPClientResponceBody(resp, w, r)
 			log.Println("Completed:  [" + contentType + "] " + realURLString)
 			return
 		}
@@ -89,11 +97,11 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		pathExtension = filepath.Ext(realURL.Path)
 	}
 
-	streamableFileExtension := [...]string{"ts", "h264", "mkv", "mpg", "mpeg", "mp2", "mpe", "mpv", "vob", "mp4", "m4p", "m4v", "avi", "mp3", "aac", "mpa", "ac3", "webm", "ogg", "mov"}
+	streamableFileExtension := [...]string{"ts", "h264", "mkv", "mpg", "mpeg", "mp2", "mpe", "mpv", "vob", "mp4", "m4p", "m4v", "avi", "mp3", "aac", "mpa", "ac3", "webm", "ogg", "mov", "zip", "gz"}
 	for _, ext := range streamableFileExtension {
 		if "."+ext == pathExtension {
 			log.Println("Streaming: [" + pathExtension + "] " + realURLString)
-			streamHTTPClientResponceBody(resp, w)
+			streamHTTPClientResponceBody(resp, w, r)
 			log.Println("Completed: [" + pathExtension + "] " + realURLString)
 			return
 		}
@@ -108,6 +116,7 @@ func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *
 	listName := r.URL.Query().Get(urlconvert.GetParamList())
 	encURL := r.URL.Query().Get(urlconvert.GetParamEncTarget())
 	isEXTM3UFile := false
+	ctx := r.Context()
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
@@ -148,13 +157,20 @@ func parseHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *
 			line = strings.ReplaceAll(line, urlToReplace, proxiedURL)
 		}
 
-		w.Write([]byte(line + "\n"))
+		select {
+		case <-ctx.Done():
+			log.Println("Connection closed.")
+			return
+		default:
+			w.Write([]byte(line + "\n"))
+		}
 	}
 }
 
-func streamHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter) {
+func streamHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter, r *http.Request) {
 	binaryDataChecked := false
 	buf := make([]byte, 5*1024) //the chunk size
+	ctx := r.Context()
 	reader := bufio.NewReader(resp.Body)
 	for {
 		n, err := reader.Read(buf)
@@ -175,7 +191,14 @@ func streamHTTPClientResponceBody(resp *http.Response, w http.ResponseWriter) {
 			binaryDataChecked = true
 		}
 
-		w.Write(buf[:n])
+		select {
+		case <-ctx.Done():
+			log.Println("Connection closed.")
+			return
+		default:
+			w.Write(buf[:n])
+		}
+
 	}
 }
 

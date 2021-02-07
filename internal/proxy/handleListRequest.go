@@ -35,6 +35,14 @@ func handleListRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = lockListConnection(reqListName)
+	if err != nil {
+		log.Println("Too many connections for list " + reqListName)
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	defer unlockListConnection(reqListName)
+
 	proxiedURLString, err := urlconvert.ConvertURLtoProxyURL(listURLString, config.GetConfig().App.URL, reqListName)
 	log.Println("Proxy list: " + proxiedURLString)
 	if err != nil {

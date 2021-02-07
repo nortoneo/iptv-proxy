@@ -2,8 +2,8 @@ package config
 
 import (
 	"errors"
-	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,14 +15,16 @@ var c *Config
 var once sync.Once
 
 const (
-	envKeyList  = "LIST_"
-	envKeyToken = "TOKEN_"
+	envKeyList           = "LIST_"
+	envKeyToken          = "TOKEN_"
+	envKeyMaxConnections = "MAXCON_"
 )
 
 // List struct
 type List struct {
-	Token string `mapstructure:"token"`
-	URL   string `mapstructure:"url"`
+	Token          string `mapstructure:"token"`
+	URL            string `mapstructure:"url"`
+	MaxConnections int    `mapstructure:"maxConnections"`
 }
 
 // App struct
@@ -33,10 +35,11 @@ type App struct {
 
 // Server struct
 type Server struct {
-	Port         int           `mapstructure:"port"`
-	WriteTimeout time.Duration `mapstructure:"writeTimeout"`
-	ReadTimeout  time.Duration `mapstructure:"readTimeout"`
-	IdleTimeout  time.Duration `mapstructure:"idleTimeout"`
+	Port                         int           `mapstructure:"port"`
+	WriteTimeout                 time.Duration `mapstructure:"writeTimeout"`
+	ReadTimeout                  time.Duration `mapstructure:"readTimeout"`
+	IdleTimeout                  time.Duration `mapstructure:"idleTimeout"`
+	WaitForConnectionSlotTimeout time.Duration `mapstructure:"waitForConnectionSlotTimeout"`
 }
 
 // Client struct
@@ -78,6 +81,12 @@ func GetListToken(k string) (string, error) {
 	return list.Token, err
 }
 
+// GetListMaxConnectios returns max clinet simultaneous conncetions for playlist
+func GetListMaxConnectios(k string) (int, error) {
+	list, err := GetListFromConfig(k)
+	return list.MaxConnections, err
+}
+
 // GetListFromConfig find list in config
 func GetListFromConfig(name string) (List, error) {
 	c := GetConfig()
@@ -104,6 +113,7 @@ func initConfig() {
 	viper.SetDefault("server.writeTimeout", "5m")
 	viper.SetDefault("server.readTimeout", "5m")
 	viper.SetDefault("server.idleTimeout", "5m")
+	viper.SetDefault("server.waitForConnectionSlotTimeout", "1s")
 
 	path := "."
 	viper.AddConfigPath(path)
@@ -145,9 +155,10 @@ func addEnvPlaylists(c *Config) {
 				continue
 			}
 			token := getEnv(envKeyToken+name, "")
-			log.Println(token)
+			maxConVal := getEnv(envKeyMaxConnections+name, "1")
+			maxCon, _ := strconv.Atoi(maxConVal)
 
-			c.Lists[name] = List{URL: url, Token: token}
+			c.Lists[name] = List{URL: url, Token: token, MaxConnections: maxCon}
 		}
 	}
 }
