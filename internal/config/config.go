@@ -35,10 +35,11 @@ type App struct {
 
 // Server struct
 type Server struct {
-	Port         int           `mapstructure:"port"`
-	WriteTimeout time.Duration `mapstructure:"writeTimeout"`
-	ReadTimeout  time.Duration `mapstructure:"readTimeout"`
-	IdleTimeout  time.Duration `mapstructure:"idleTimeout"`
+	Port                         int           `mapstructure:"port"`
+	WriteTimeout                 time.Duration `mapstructure:"writeTimeout"`
+	ReadTimeout                  time.Duration `mapstructure:"readTimeout"`
+	IdleTimeout                  time.Duration `mapstructure:"idleTimeout"`
+	WaitForConnectionSlotTimeout time.Duration `mapstructure:"waitForConnectionSlotTimeout"`
 }
 
 // Client struct
@@ -112,6 +113,7 @@ func initConfig() {
 	viper.SetDefault("server.writeTimeout", "5m")
 	viper.SetDefault("server.readTimeout", "5m")
 	viper.SetDefault("server.idleTimeout", "5m")
+	viper.SetDefault("server.waitForConnectionSlotTimeout", "1s")
 
 	path := "."
 	viper.AddConfigPath(path)

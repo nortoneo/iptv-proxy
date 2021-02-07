@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/nortoneo/iptv-proxy/internal/config"
 )
@@ -17,16 +19,20 @@ func getListSema(listName string) chan struct{} {
 		}
 	})
 
-	if sema, ok := listSema[listName]; ok {
-		return sema
-	}
-
-	panic("No sempaphore for list " + listName)
+	return listSema[listName]
 }
 
-func lockListConnection(listName string) {
+func lockListConnection(listName string) error {
 	sema := getListSema(listName)
-	sema <- struct{}{}
+	lockTimeout := config.GetConfig().Server.WaitForConnectionSlotTimeout
+	for {
+		select {
+		case sema <- struct{}{}:
+			return nil
+		case <-time.After(lockTimeout):
+			return errors.New("Connection lock timeout")
+		}
+	}
 }
 
 func unlockListConnection(listName string) {

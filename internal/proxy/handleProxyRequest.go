@@ -26,7 +26,12 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lockListConnection(listName)
+	err = lockListConnection(listName)
+	if err != nil {
+		log.Println("Too many connections for list " + listName)
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
 	defer unlockListConnection(listName)
 
 	req, err := http.NewRequest("GET", realURLString, nil)

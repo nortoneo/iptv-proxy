@@ -18,3 +18,4 @@ server:
   port: 1338
   readtimeout: 5m
   writetimeout: 5m
+  waitForConnectionSlotTimeout: 1s
