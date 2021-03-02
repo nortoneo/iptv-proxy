@@ -155,7 +155,7 @@ func addEnvPlaylists(c *Config) {
 				continue
 			}
 			token := getEnv(envKeyToken+name, "")
-			maxConVal := getEnv(envKeyMaxConnections+name, "1")
+			maxConVal := getEnv(envKeyMaxConnections+name, "2")
 			maxCon, _ := strconv.Atoi(maxConVal)
 
 			c.Lists[name] = List{URL: url, Token: token, MaxConnections: maxCon}
