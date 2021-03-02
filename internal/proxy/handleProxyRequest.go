@@ -80,7 +80,7 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	streamableContentType := [...]string{"video/", "image/", "application/octet-stream"}
+	streamableContentType := [...]string{"video/", "image/"}
 	for _, streamableCT := range streamableContentType {
 		if strings.Contains(contentType, streamableCT) {
 			log.Println("Streaming:  [" + contentType + "] " + realURLString)
