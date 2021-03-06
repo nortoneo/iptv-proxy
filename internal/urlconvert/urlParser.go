@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -45,7 +46,11 @@ func ConvertPathToProxyPath(path, listName, encURL string) (string, error) {
 	q.Set(GetParamEncTarget(), encURL)
 	u.RawQuery = q.Encode()
 
-	return u.String(), nil
+	uString, _ := url.QueryUnescape(u.String())
+
+	log.Println("Converted: " + path + " to: " + uString)
+
+	return uString, nil
 }
 
 // ConvertURLtoProxyURL converts real url to proxy url
@@ -86,7 +91,9 @@ func ConvertURLtoProxyURL(realURL, appURL, listName string) (string, error) {
 	q.Set(GetParamEncTarget(), encURL)
 	real.RawQuery = q.Encode()
 
-	proxyURLString := real.String()
+	proxyURLString, _ := url.QueryUnescape(real.String())
+
+	log.Println("Converted: " + realURL + " to: " + proxyURLString)
 
 	return proxyURLString, nil
 }
@@ -149,7 +156,10 @@ func ConvertProxyURLtoURL(proxyURL string) (string, string, error) {
 	pURL.Host = realURL.Host
 	pURL.User = realURL.User
 
-	return pURL.String(), listName, nil
+	urlString, _ := url.QueryUnescape(pURL.String())
+	log.Println("Converted: " + proxyURL + " to: " + urlString)
+
+	return urlString, listName, nil
 }
 
 // Encode encodes string to obfuscated url friendly string
