@@ -26,13 +26,30 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = lockListConnection(listName)
-	if err != nil {
-		log.Println("Too many connections for list " + listName)
-		w.WriteHeader(http.StatusTooManyRequests)
-		return
+	pathExtension := ""
+	realURL, err := url.Parse(realURLString)
+	if err == nil {
+		pathExtension = filepath.Ext(realURL.Path)
 	}
-	defer unlockListConnection(listName)
+
+	isImageExtension := false
+	imageFileExtension := [...]string{"jpg", "jpeg", "gif", "png"}
+	for _, ext := range imageFileExtension {
+		if "."+ext == pathExtension {
+			isImageExtension = true
+			break
+		}
+	}
+
+	if isImageExtension == false {
+		err = lockListConnection(listName)
+		if err != nil {
+			log.Println("Too many connections for list " + listName)
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		defer unlockListConnection(listName)
+	}
 
 	req, err := http.NewRequest("GET", realURLString, nil)
 	if err != nil {
@@ -88,13 +105,6 @@ func handleProxyRequest(w http.ResponseWriter, r *http.Request) {
 			log.Println("Completed:  [" + contentType + "] " + realURLString)
 			return
 		}
-	}
-
-	//content type not recognized, decide by file extension if we should stream or parse text
-	pathExtension := ""
-	realURL, err := url.Parse(realURLString)
-	if err == nil {
-		pathExtension = filepath.Ext(realURL.Path)
 	}
 
 	streamableFileExtension := [...]string{"ts", "h264", "mkv", "mpg", "mpeg", "mp2", "mpe", "mpv", "vob", "mp4", "m4p", "m4v", "avi", "mp3", "aac", "mpa", "ac3", "webm", "ogg", "mov", "zip", "gz"}
